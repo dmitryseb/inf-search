@@ -17,7 +17,7 @@ func BenchmarkLSMInsertSizes(b *testing.B) {
 			ops := make([]float64, 0, trials)
 
 			for t := 0; t < trials; t++ {
-				l := Init(1 << 30)
+				l := Init(1000)
 				start := time.Now()
 				for i := 0; i < n; i++ {
 					v := "v"
