@@ -2,95 +2,50 @@ package lsm
 
 import (
 	"fmt"
-	"sort"
 	"testing"
-	"time"
 )
 
-func BenchmarkLSMInsertSizes(b *testing.B) {
+func BenchmarkLSMPut(b *testing.B) {
 	sizes := []int{10, 100, 1_000, 10_000, 100_000, 1_000_000}
-	trials := 5
 
 	for _, n := range sizes {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
-			b.StopTimer()
-			ops := make([]float64, 0, trials)
+			keys := make([]string, n)
+			for i := 0; i < n; i++ {
+				keys[i] = fmt.Sprintf("%d", i)
+			}
+			v := "v"
 
-			for t := 0; t < trials; t++ {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
 				l := Init(1000)
-				start := time.Now()
-				for i := 0; i < n; i++ {
-					v := "v"
-					l.Put(fmt.Sprintf("%d", i), &v)
-				}
-				elapsed := time.Since(start)
-
-				if elapsed > 0 {
-					ops = append(ops, float64(n)/elapsed.Seconds())
+				for _, k := range keys {
+					l.Put(k, &v)
 				}
 			}
-
-			if len(ops) == 0 {
-				return
-			}
-			sort.Float64s(ops)
-			sum := 0.0
-			for _, v := range ops {
-				sum += v
-			}
-			avg := sum / float64(len(ops))
-			med := ops[len(ops)/2]
-			max := ops[len(ops)-1]
-
-			b.ReportMetric(avg, "ops/s_avg")
-			b.ReportMetric(med, "ops/s_med")
-			b.ReportMetric(max, "ops/s_max")
 		})
 	}
 }
 
-func BenchmarkLSMReadAfterInsertSizes(b *testing.B) {
+func BenchmarkLSMGet(b *testing.B) {
 	sizes := []int{10, 100, 1_000, 10_000, 100_000, 1_000_000}
-	trials := 5
 
 	for _, n := range sizes {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
-			b.StopTimer()
-			ops := make([]float64, 0, trials)
-
-			for t := 0; t < trials; t++ {
-				l := Init(1 << 30)
-				for i := 0; i < n; i++ {
-					v := "v"
-					l.Put(fmt.Sprintf("%d", i), &v)
-				}
-
-				start := time.Now()
-				for i := 0; i < n; i++ {
-					_ = l.Get(fmt.Sprintf("%d", i))
-				}
-				elapsed := time.Since(start)
-
-				if elapsed > 0 {
-					ops = append(ops, float64(n)/elapsed.Seconds())
-				}
+			keys := make([]string, n)
+			for i := 0; i < n; i++ {
+				keys[i] = fmt.Sprintf("%d", i)
+			}
+			v := "v"
+			l := Init(1 << 30)
+			for _, k := range keys {
+				l.Put(k, &v)
 			}
 
-			if len(ops) == 0 {
-				return
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = l.Get(keys[i%len(keys)])
 			}
-			sort.Float64s(ops)
-			sum := 0.0
-			for _, v := range ops {
-				sum += v
-			}
-			avg := sum / float64(len(ops))
-			med := ops[len(ops)/2]
-			max := ops[len(ops)-1]
-
-			b.ReportMetric(avg, "ops/s_avg")
-			b.ReportMetric(med, "ops/s_med")
-			b.ReportMetric(max, "ops/s_max")
 		})
 	}
 }
