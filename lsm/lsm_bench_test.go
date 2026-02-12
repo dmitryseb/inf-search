@@ -37,7 +37,7 @@ func BenchmarkLSMGet(b *testing.B) {
 				keys[i] = fmt.Sprintf("%d", i)
 			}
 			v := "v"
-			l := Init(1 << 30)
+			l := Init(1000)
 			for _, k := range keys {
 				l.Put(k, &v)
 			}
