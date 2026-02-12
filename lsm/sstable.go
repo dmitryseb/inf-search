@@ -553,79 +553,77 @@ func mergeKWay(tables []*SSTable, emit func(key string, best VersionedValue) err
 	heap := binaryheap.NewWith(func(a, b any) int {
 		ai := a.(*it)
 		bi := b.(*it)
-		if ai.key < bi.key {
+		switch {
+		case ai.key < bi.key:
 			return -1
-		}
-		if ai.key == bi.key {
+		case ai.key > bi.key:
+			return 1
+		default:
 			return 0
 		}
-		return 1
 	})
 
-	next := func(t *SSTable, i int) (*it, error) {
-		if i >= t.keyCount {
-			return nil, nil
-		}
-		k, err := t.keyAt(i)
-		if err != nil {
-			return nil, err
-		}
-		return &it{t: t, i: i, key: k}, nil
-	}
-
 	for _, t := range tables {
-		it, err := next(t, 0)
+		if t.keyCount == 0 {
+			continue
+		}
+		k, err := t.keyAt(0)
 		if err != nil {
 			return err
 		}
-		if it != nil {
-			heap.Push(it)
-		}
+		heap.Push(&it{t: t, i: 0, key: k})
 	}
 
 	for heap.Size() > 0 {
-		top, _ := heap.Peek()
-		minKey := top.(*it).key
+		v, _ := heap.Pop()
+		cur := v.(*it)
+		key := cur.key
 
-		group := make([]*it, 0, 4)
+		offset, err := cur.t.offsetAt(cur.i)
+		if err != nil {
+			return err
+		}
+		best, err := cur.t.readRecordAt(offset)
+		if err != nil {
+			return err
+		}
+		if cur.i+1 < cur.t.keyCount {
+			k, err := cur.t.keyAt(cur.i + 1)
+			if err != nil {
+				return err
+			}
+			heap.Push(&it{t: cur.t, i: cur.i + 1, key: k})
+		}
+
 		for heap.Size() > 0 {
 			top, _ := heap.Peek()
-			if top.(*it).key != minKey {
+			if top.(*it).key != key {
 				break
 			}
 			v, _ := heap.Pop()
-			group = append(group, v.(*it))
-		}
-
-		best := VersionedValue{}
-		hasBest := false
-		for _, it := range group {
-			offset, err := it.t.offsetAt(it.i)
+			cur = v.(*it)
+			offset, err = cur.t.offsetAt(cur.i)
 			if err != nil {
 				return err
 			}
-			v, err := it.t.readRecordAt(offset)
+			val, err := cur.t.readRecordAt(offset)
 			if err != nil {
 				return err
 			}
-			if !hasBest || v.sequenceNumber > best.sequenceNumber {
-				best = v
-				hasBest = true
+			if val.sequenceNumber > best.sequenceNumber {
+				best = val
+			}
+			if cur.i+1 < cur.t.keyCount {
+				k, err := cur.t.keyAt(cur.i + 1)
+				if err != nil {
+					return err
+				}
+				heap.Push(&it{t: cur.t, i: cur.i + 1, key: k})
 			}
 		}
 
-		if err := emit(minKey, best); err != nil {
+		if err := emit(key, best); err != nil {
 			return err
-		}
-
-		for _, it := range group {
-			nxt, err := next(it.t, it.i+1)
-			if err != nil {
-				return err
-			}
-			if nxt != nil {
-				heap.Push(nxt)
-			}
 		}
 	}
 	return nil

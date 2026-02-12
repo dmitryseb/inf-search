@@ -34,7 +34,7 @@ func (b *BloomFilter) AddString(s string) {
 
 func (b *BloomFilter) MightContainString(s string) bool {
 	h1, h2 := bloomHashes(s)
-	return b.getBit(h1%b.mBits) && b.getBit(h2%b.mBits)
+	return b.getBit(h1 % b.mBits) && b.getBit(h2 % b.mBits)
 }
 
 func (b *BloomFilter) setBit(bit uint64) {
