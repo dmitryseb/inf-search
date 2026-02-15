@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func BenchmarkLSMPut(b *testing.B) {
+func BenchmarkLSPut(b *testing.B) {
 	sizes := []int{10, 100, 1_000, 10_000, 100_000, 1_000_000}
 
 	for _, n := range sizes {
@@ -48,4 +48,8 @@ func BenchmarkLSMGet(b *testing.B) {
 			}
 		})
 	}
+}
+
+func Test(b *testing.T) {
+
 }

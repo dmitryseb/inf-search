@@ -44,7 +44,7 @@ func CreateSSTableFromMemTable(path string, table *MemTable) (*SSTable, error) {
 	keys := make([]string, 0, len(entries))
 	offsets := make([]uint64, 0, len(entries))
 
-	bloom := NewBloomFilter(len(entries), 0.01)
+	bloom := NewBloomFilter(len(entries))
 	for _, e := range entries {
 		keys = append(keys, e.Key)
 		offsets = append(offsets, 0)
@@ -92,7 +92,7 @@ func MergeSSTables(path string, tables ...*SSTable) (*SSTable, error) {
 	for _, t := range tables {
 		expected += t.keyCount
 	}
-	bloom := NewBloomFilter(expected, 0.01)
+	bloom := NewBloomFilter(expected)
 	headerSize := 16 + 8*len(bloom.bits)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

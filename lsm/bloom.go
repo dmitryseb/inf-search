@@ -12,7 +12,7 @@ const (
 	bloomShift           = 33
 )
 
-func NewBloomFilter(expectedItems int, falsePositiveRate float64) *BloomFilter {
+func NewBloomFilter(expectedItems int) *BloomFilter {
 	if expectedItems < 1 {
 		expectedItems = 1
 	}
