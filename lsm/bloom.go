@@ -8,7 +8,7 @@ type BloomFilter struct {
 }
 
 const (
-	bloomMixConst uint64 = 0x9e3779b97f4a7c15
+	bloomMixConst uint64 = 1791791791
 	bloomShift           = 33
 )
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 )
 
@@ -16,7 +15,6 @@ type LSM struct {
 	memTable       *MemTable
 	constMemTable  *MemTable
 	files          [][]*SSTable
-	l0NonOverlap   bool
 	sequenceNumber uint32
 	nextFileID     uint64
 
@@ -30,7 +28,6 @@ func Init(maxSize int) *LSM {
 		dir:              "lsmdata",
 		maxFilesPerLevel: 6,
 		memTable:         NewMemTable(),
-		l0NonOverlap:     true,
 	}
 }
 
@@ -65,18 +62,7 @@ func (l *LSM) Get(key string) *string {
 		}
 	}
 
-	for levelIdx, level := range l.files {
-		if levelIdx == 0 && l.l0NonOverlap && len(level) > 0 {
-			i := sort.Search(len(level), func(i int) bool { return level[i].maxKey >= key })
-			if i < len(level) && level[i].minKey <= key {
-				v, ok, err := level[i].Get(key)
-				if err == nil && ok {
-					return v.value
-				}
-			}
-			continue
-		}
-
+	for _, level := range l.files {
 		for i := len(level) - 1; i >= 0; i-- {
 			f := level[i]
 			if f.keyCount > 0 && (key < f.minKey || key > f.maxKey) {
@@ -119,14 +105,6 @@ func (l *LSM) Compact() error {
 	l.constMemTable = nil
 	l.ensureLevelLocked(0)
 	l.files[0] = append(l.files[0], sst)
-	if len(l.files[0]) == 1 {
-		l.l0NonOverlap = true
-	} else if l.l0NonOverlap {
-		prev := l.files[0][len(l.files[0])-2]
-		if prev.keyCount > 0 && sst.keyCount > 0 && prev.maxKey >= sst.minKey {
-			l.l0NonOverlap = false
-		}
-	}
 	err = l.maybeCompactLevelsLocked()
 	l.compacting = false
 	l.mutex.Unlock()
@@ -142,7 +120,7 @@ func (l *LSM) ensureLevelLocked(level int) {
 func (l *LSM) newFilePathLocked(level int) string {
 	id := l.nextFileID
 	l.nextFileID++
-	name := fmt.Sprintf("L%d-%06d.sst", level, id)
+	name := fmt.Sprintf("L%d-%d.sst", level, id)
 	return filepath.Join(l.dir, name)
 }
 
@@ -169,9 +147,6 @@ func (l *LSM) maybeCompactLevelsLocked() error {
 
 		l.files[level] = nil
 		l.files[nextLevel] = append(l.files[nextLevel], merged)
-		if level == 0 {
-			l.l0NonOverlap = true
-		}
 	}
 	return nil
 }
