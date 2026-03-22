@@ -23,10 +23,22 @@ func NewMemTable() *MemTable {
 }
 
 func (t *MemTable) Put(key string, value *string, sequence uint32) {
-	t.values[key] = VersionedValue{
-		value:          value,
-		sequenceNumber: sequence,
+	if value == nil {
+		t.values[key] = VersionedValue{value: nil, sequenceNumber: sequence}
+		return
 	}
+	if prev, ok := t.values[key]; ok && prev.value != nil {
+		merged, err := mergeTwoRoaringStrings(prev.value, value)
+		if err == nil {
+			seq := prev.sequenceNumber
+			if sequence > seq {
+				seq = sequence
+			}
+			t.values[key] = VersionedValue{value: merged, sequenceNumber: seq}
+			return
+		}
+	}
+	t.values[key] = VersionedValue{value: value, sequenceNumber: sequence}
 }
 
 func (t *MemTable) Get(key string) (VersionedValue, bool) {

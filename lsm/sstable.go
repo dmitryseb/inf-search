@@ -583,7 +583,7 @@ func mergeKWay(tables []*SSTable, emit func(key string, best VersionedValue) err
 		if err != nil {
 			return err
 		}
-		best, err := cur.t.readRecordAt(offset)
+		first, err := cur.t.readRecordAt(offset)
 		if err != nil {
 			return err
 		}
@@ -595,6 +595,7 @@ func mergeKWay(tables []*SSTable, emit func(key string, best VersionedValue) err
 			heap.Push(&it{t: cur.t, i: cur.i + 1, key: k})
 		}
 
+		group := []VersionedValue{first}
 		for heap.Size() > 0 {
 			top, _ := heap.Peek()
 			if top.(*it).key != key {
@@ -610,9 +611,7 @@ func mergeKWay(tables []*SSTable, emit func(key string, best VersionedValue) err
 			if err != nil {
 				return err
 			}
-			if val.sequenceNumber > best.sequenceNumber {
-				best = val
-			}
+			group = append(group, val)
 			if cur.i+1 < cur.t.keyCount {
 				k, err := cur.t.keyAt(cur.i + 1)
 				if err != nil {
@@ -622,7 +621,11 @@ func mergeKWay(tables []*SSTable, emit func(key string, best VersionedValue) err
 			}
 		}
 
-		if err := emit(key, best); err != nil {
+		merged, err := mergeVersionedRoaring(group)
+		if err != nil {
+			return err
+		}
+		if err := emit(key, merged); err != nil {
 			return err
 		}
 	}

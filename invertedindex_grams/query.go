@@ -2,6 +2,7 @@ package invertedindex
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"unicode"
@@ -91,8 +92,13 @@ func (idx *InvertedIndex) SearchPrefix(prefix string) ([]int, error) {
 		return nil, fmt.Errorf("empty prefix")
 	}
 
+	candidates := idx.kgramIntersectFromRequired(prefixKgrams(prefix, idx.k))
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
 	bm := roaring.New()
-	for term := range idx.terms {
+	for _, term := range candidates {
 		if strings.HasPrefix(term, prefix) {
 			bm.Or(idx.loadPosting(term))
 		}
@@ -109,7 +115,7 @@ func (idx *InvertedIndex) SearchWildcard(pattern string) ([]int, error) {
 		return bitmapToIntSlice(idx.loadPosting(pattern)), nil
 	}
 
-	candidates := idx.kgramCandidates(pattern)
+	candidates := idx.kgramIntersectFromRequired(patternKgrams(pattern, idx.k))
 	if len(candidates) == 0 {
 		return nil, nil
 	}
@@ -234,8 +240,7 @@ func normalizePattern(s string) string {
 	return b.String()
 }
 
-func (idx *InvertedIndex) kgramCandidates(pattern string) []string {
-	required := patternKgrams(pattern, idx.k)
+func (idx *InvertedIndex) kgramIntersectFromRequired(required []string) []string {
 	var current map[string]struct{}
 
 	for _, gram := range required {
@@ -244,7 +249,7 @@ func (idx *InvertedIndex) kgramCandidates(pattern string) []string {
 			return nil
 		}
 		if current == nil {
-			current = cloneTermSet(terms)
+			current = maps.Clone(terms)
 			continue
 		}
 		for t := range current {
@@ -258,11 +263,32 @@ func (idx *InvertedIndex) kgramCandidates(pattern string) []string {
 	}
 
 	if current == nil {
-		current = cloneTermSet(idx.terms)
+		current = maps.Clone(idx.terms)
 	}
 	out := make([]string, 0, len(current))
 	for term := range current {
 		out = append(out, term)
+	}
+	return out
+}
+
+func prefixKgrams(prefix string, k int) []string {
+	if k <= 0 {
+		return nil
+	}
+	padded := "$" + prefix
+	if len(padded) < k {
+		return nil
+	}
+	out := make([]string, 0, len(padded)-k+1)
+	seen := make(map[string]struct{})
+	for i := 0; i <= len(padded)-k; i++ {
+		gram := padded[i : i+k]
+		if _, ok := seen[gram]; ok {
+			continue
+		}
+		seen[gram] = struct{}{}
+		out = append(out, gram)
 	}
 	return out
 }
@@ -288,16 +314,7 @@ func patternKgrams(pattern string, k int) []string {
 	return out
 }
 
-func cloneTermSet(in map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(in))
-	for k := range in {
-		out[k] = struct{}{}
-	}
-	return out
-}
-
 func wildcardMatch(pattern, term string) bool {
-	expr := "^" + strings.ReplaceAll(regexp.QuoteMeta(pattern), `\*`, ".*") + "$"
-	re := regexp.MustCompile(expr)
+	re := regexp.MustCompile("^" + strings.ReplaceAll(regexp.QuoteMeta(pattern), `\*`, ".*") + "$")
 	return re.MatchString(term)
 }

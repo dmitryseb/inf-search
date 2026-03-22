@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestInvertedIndex(t *testing.T) {
+func TestInvertedIndexGrams(t *testing.T) {
 	idx := NewInvertedIndexWithLSM(1024, t.TempDir())
 	idx.AddDocument(1, "running fast with maps")
 	idx.AddDocument(2, "run bloom filter")
@@ -29,6 +29,33 @@ func TestInvertedIndex(t *testing.T) {
 		}
 	}
 
+	got, err := idx.SearchPrefix("ru")
+	if err != nil {
+		t.Fatalf("SearchPrefix: %v", err)
+	}
+	if !reflect.DeepEqual(got, []int{1, 2}) {
+		t.Fatalf("SearchPrefix(ru) = %v, want [1 2]", got)
+	}
+
+	widx := NewInvertedIndexWithLSM(1024, t.TempDir())
+	widx.AddDocument(1, "running fast")
+	widx.AddDocument(2, "runner slow")
+	widx.AddDocument(3, "bloom bitmap")
+	got, err = widx.SearchWildcard("run*")
+	if err != nil {
+		t.Fatalf("SearchWildcard: %v", err)
+	}
+	if !reflect.DeepEqual(got, []int{1, 2}) {
+		t.Fatalf("SearchWildcard(run*) = %v, want [1 2]", got)
+	}
+	got, err = widx.SearchWildcard("*oom")
+	if err != nil {
+		t.Fatalf("SearchWildcard: %v", err)
+	}
+	if !reflect.DeepEqual(got, []int{3}) {
+		t.Fatalf("SearchWildcard(*oom) = %v, want [3]", got)
+	}
+
 	small := NewInvertedIndexWithLSM(2, t.TempDir())
 	small.AddDocument(1, "running map")
 	small.AddDocument(2, "run bloom")
@@ -36,7 +63,7 @@ func TestInvertedIndex(t *testing.T) {
 	if err := small.Compact(); err != nil {
 		t.Fatalf("Compact: %v", err)
 	}
-	got, err := small.Search("run AND bloom")
+	got, err = small.Search("run AND bloom")
 	if err != nil {
 		t.Fatalf("Search after Compact: %v", err)
 	}
